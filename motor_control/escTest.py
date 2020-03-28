@@ -8,6 +8,10 @@ import sys
 # Set up i2c connection between nano and PCA9685 pwm board
 kit = ServoKit(channels=16)
 inputAvailable = True
+#initialize steering angle and calibrate esc
+kit.continuous_servo[1].throttle = 0
+kit.servo[0].angle = 95
+
 
 print("INSTRUCTIONS: This program is designed to test each motor individually until the user ends the program.\n"
 "Select servo motor using keyword SERVO\n"
