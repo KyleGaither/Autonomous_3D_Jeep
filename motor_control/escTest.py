@@ -17,12 +17,12 @@ print("INSTRUCTIONS: This program is designed to test each motor individually un
 while inputAvailable:
     motorSelect = input("select which motor to test:\n")
     if motorSelect.upper() == "SERVO":
-        servo_angle = input("Servo motor Selected, choose an angle: \n")
+        servo_angle = int(input("Servo motor Selected, choose an angle: \n"))
         #choose index in servo method according to the index the servo is connected to on pwm board
         kit.servo[0].angle = servo_angle
 
     if motorSelect.upper() == "ESC":
-        drive_speed = input("Drive motor selected, choose speed as a decimal between -1 to 1: \n")
+        drive_speed = int(input("Drive motor selected, choose speed as a decimal between -1 to 1: \n"))
         kit.continuous_servo[1].throttle = drive_speed
         time.sleep(3)
         kit.continuous_servo[1].throttle = 0
