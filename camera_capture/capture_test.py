@@ -1,7 +1,8 @@
 import numpy as np
 import cv2
+import jetson.utils
 
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0, cv.CAP_GSTREAMER)
 if not cap.isOpened():
 	print("Cannot open Camera")
 	exit()
@@ -14,7 +15,7 @@ while True:
 		print("Can't receive frame. Exiting.....")
 		break
 	#display the resulting frame 
-	cv2.imshow('frame')
+	cv2.imshow('frame', frame)
 	if cv2.waitKey(1) == ord('q'):
 		break
 
