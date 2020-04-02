@@ -1,30 +1,24 @@
-import numpy as np
 import cv2
 
-gStreamer_pipeline = "nvarguscamerasrc ! "
-					 "video/x-raw(memory:NVMM), "
-        			 "width=(int)3280, height=(int)2464, "
-        			 "format=(string)NV12, framerate=(fraction)21/1 ! "
-        			 "nvvidconv flip-method=2 ! "
-       			 	 "video/x-raw, width=1280, height=720 format=(string)BGRx ! "
-        			 "videoconvert ! "
-        			 "video/x-raw, format=(string)BGR ! appsink"
-cap = cv2.VideoCapture(gStreamer_pipeline, cv2.CAP_GSTREAMER)
-if not cap.isOpened():
-	print("Cannot open Camera")
-	exit()
-while True:
-	#Capture frame by frame
-	ret, frame = cap.read()
-	
-	# if frame is read correctly ret is True
-	if not ret:
-		print("Can't receive frame. Exiting.....")
-		break
-	#display the resulting frame 
-	cv2.imshow("frame", frame)
-	if cv2.waitKey(1) == ord('q'):
-		break
+cv2_pipeline ="nvarguscamerasrc ! video/x-raw(memory:NVMM), width=(int)1920, height=(int)1080, format=(string)NV12, framerate=(fraction)30/1 ! nvvidconv flip-method=2 ! video/x-raw, width=(int)1280, height=(int)720, format=(string)BGRx ! videoconvert ! video/x-raw, format=(string)BGR ! appsink" 
 
-cap.release()
-cv2.destroyAllWindows()
+print(cv2_pipeline) 
+
+
+cap = cv2.VideoCapture(cv2_pipeline, cv2.CAP_GSTREAMER)
+if cap.isOpened():
+	window_handle = cv2.namedWindow("CSI Camera", cv2.WINDOW_AUTOSIZE)
+	# Window
+	while cv2.getWindowProperty("CSI Camera", 0) >= 0:
+		ret_val, img = cap.read()
+		cv2.imshow("CSI Camera",img)
+		# This also acts as
+		keyCode = cv2.waitKey(30) & 0xFF
+		# Stop the program on the ESC key
+		if keyCode == 27:
+			break
+	cap.release()
+	cv2.destroyAllWindows()
+else:
+	print("Unable to open camera")
+
