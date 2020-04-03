@@ -1,5 +1,4 @@
-import cv2
-import lib_autonomous_jeep
+import lib_autonomous_jeep as jeep
 
-print(gstreamer_pipeline_show())
-
+print(jeep.gstreamer_pipeline_show())
+jeep.camera_show()

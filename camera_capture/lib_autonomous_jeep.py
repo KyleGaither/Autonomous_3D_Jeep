@@ -1,9 +1,10 @@
 #function from jetsonhacks simplecamera.py, github_repo: https://github.com/JetsonHacksNano/CSI-Camera.git
+import cv2
 def gstreamer_pipeline_show(
-    cap_width=1920, 
-    cap_height=1080, 
-    disp_width=1920, 
-    disp_height=1080,
+    cap_width=1280, 
+    cap_height=720, 
+    disp_width=1280, 
+    disp_height=720,
     framerate = 30,
     flip_method = 2,
 ):
