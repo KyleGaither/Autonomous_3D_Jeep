@@ -39,8 +39,10 @@ def camera_show():
         #getWindowProperty documentation: https://docs.opencv.org/4.1.1/d7/dfc/group__highgui.html#gaaf9504b8f9cf19024d9d44a14e461656
         while cv2.getWindowProperty("Arducam", 0) >= 0:
             ret, frame = capture.read()
-            frame = find_edges(frame)
-            cv2.imshow("Arducam", frame)
+            edges = find_edges(frame)
+            roi = region_of_interest(edges)
+
+            cv2.imshow("Arducam", roi)
             # This also acts as
             keyCode = cv2.waitKey(30) & 0xFF
             # Stop the program on the ESC key
@@ -61,3 +63,19 @@ def find_edges(frame):
     edges = cv2.Canny(mask, 200, 400)
 
     return edges
+
+def region_of_interest(edges):
+    height, width = edges.shape
+    mask = np.zeros_like(edges)
+
+    # only focus bottom half of the screen
+    polygon = np.array([[
+        (0, height * 1 / 2),
+        (width, height * 1 / 2),
+        (width, height),
+        (0, height),
+    ]], np.int32)
+
+    cv2.fillPoly(mask, polygon, 255)
+    cropped_edges = cv2.bitwise_and(edges, mask)
+    return cropped_edges
