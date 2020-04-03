@@ -1,5 +1,6 @@
 #function from jetsonhacks simplecamera.py, github_repo: https://github.com/JetsonHacksNano/CSI-Camera.git
 import cv2
+import numpy as np
 def gstreamer_pipeline_show(
     cap_width=1280, 
     cap_height=720, 
@@ -38,6 +39,7 @@ def camera_show():
         #getWindowProperty documentation: https://docs.opencv.org/4.1.1/d7/dfc/group__highgui.html#gaaf9504b8f9cf19024d9d44a14e461656
         while cv2.getWindowProperty("Arducam", 0) >= 0:
             ret, frame = capture.read()
+            frame = find_edges(frame)
             cv2.imshow("Arducam", frame)
             # This also acts as
             keyCode = cv2.waitKey(30) & 0xFF
@@ -48,3 +50,14 @@ def camera_show():
         cv2.destoryAllWindows()
     else:
         print("Unable to open capture stream")
+
+def find_edges(frame):
+    # filter for blue lane lines
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    lower_blue = np.array([60, 40, 40])
+    upper_blue = np.array([150, 255, 255])
+    mask = cv2.inRange(hsv, lower_blue, upper_blue)
+    # detect edges
+    edges = cv2.Canny(mask, 200, 400)
+
+    return edges
