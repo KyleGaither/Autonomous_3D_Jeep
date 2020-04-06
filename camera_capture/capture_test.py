@@ -1,5 +1,5 @@
 import lane_detection_w0_thread as ld
-
+import cv2
 def gstreamer_pipeline_show(
     cap_width=1920, 
     cap_height=1080, 
