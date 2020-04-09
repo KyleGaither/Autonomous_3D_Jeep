@@ -1,36 +1,4 @@
-import cv2
-import numpy as np
-
-class Camera:
-
-	def __init__(self, cap_width=1280, cap_height=720, disp_width=720, disp_height=480, framerate = 30, flip_method = 2):
-	    self.cap_width = cap_width
-	    self.cap_height = cap_height
-	    self.disp_width = disp_width
-	    self.disp_height = disp_height
-	    self.framerate = framerate
-	    self.flip_method = flip_method
-	def gstreamer_pipeline_show(self):
-	    return(
-	        "nvarguscamerasrc ! "
-	        "video/x-raw(memory:NVMM), "
-	        "width=(int)%d, height=(int)%d, "
-	        "format=(string)NV12, framerate=(fraction)%d/1 ! "
-	        "nvvidconv flip-method=%d ! "
-	        "video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! "
-	        "videoconvert ! "
-	        "video/x-raw, format=(string)BGR ! appsink"
-	        % (
-	            self.cap_width,
-	            self.cap_height,
-	            self.framerate,
-	            self.flip_method,
-	            self.disp_width,
-	            self.disp_height,
-	        )
-	    )
-
-	def stream(self):
+def stream(self):
 	    print(self.gstreamer_pipeline_show())
 	    #opencv documentation for VideoCapture function, https://docs.opencv.org/4.1.1/d8/dfe/classcv_1_1VideoCapture.html#aabce0d83aa0da9af802455e8cf5fd181
 	    capture = cv2.VideoCapture(self.gstreamer_pipeline_show(), cv2.CAP_GSTREAMER)
@@ -51,7 +19,3 @@ class Camera:
 	        cv2.destoryAllWindows()
 	    else:
 	        print("Unable to open capture stream")
-
-if __name__ == "__main__":
-	cam = Camera()
-	cam.stream()
