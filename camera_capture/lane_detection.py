@@ -1,33 +1,5 @@
 import cv2
 import numpy as np
-import logging
-
-def gstreamer_pipeline_show(
-    cap_width=3264, 
-    cap_height=2464, 
-    disp_width=1280, 
-    disp_height=720,
-    framerate = 21,
-    flip_method = 2,
-):
-    return(
-        "nvarguscamerasrc ! "
-        "video/x-raw(memory:NVMM), "
-        "width=(int)%d, height=(int)%d, "
-        "format=(string)NV12, framerate=(fraction)%d/1 ! "
-        "nvvidconv flip-method=%d ! "
-        "video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! "
-        "videoconvert ! "
-        "video/x-raw, format=(string)BGR ! appsink"
-        % (
-            cap_width,
-            cap_height,
-            framerate,
-            flip_method,
-            disp_width,
-            disp_height,
-        )
-    )
 
 #convert image from BGR colorspace to HSV and blur the image to reduce processing cost
 def HSV(frame):
