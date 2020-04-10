@@ -1,57 +1,78 @@
-import camera_capture_opencv as Cam
-import framesPerSecond
+# MIT License
+# Copyright (c) 2019 JetsonHacks
+# See license
+# Using a CSI camera (such as the Raspberry Pi Version 2) connected to a
+# NVIDIA Jetson Nano Developer Kit using OpenCV
+# Drivers for the camera and OpenCV are included in the base image
+
 import cv2
+import time
 import numpy as np
 import threading
-from time import sleep
-
-max_frames = 200
-disp_output = False
-camera = Cam.Camera.start()
-fps = framesPerSecond.FPS().start()
-
-while fps._numFrames < max_frames:
-    frame = camera.read()
-
-    if disp_output:
-        cv2.imshow("frame", frame)
-        key = cv2.waitKey(1) & 0xFF
-    
-    fps.update()
-
-fps.stop()
-print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
-print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
-
-cv2.destroyAllWindows()
-camera.stop()
 
 
+class VideoCaptureAsync:
+	def __init__(self):
+		self.cap = cv2.VideoCapture(self.gstreamer_pipeline(), cv2.CAP_GSTREAMER)
+		self.grabbed, self.frame = self.cap.read()
+		self.started = False
+		self.read_lock = threading.Lock()
+	
+	def gstreamer_pipeline(self):
+		return (
+		    "nvarguscamerasrc ! "
+		    "video/x-raw(memory:NVMM), "
+		    "width=(int)1280, height=(int)720, "
+		    "format=(string)NV12, framerate=(fraction)25/1 ! "
+		    "nvvidconv flip-method=2 ! "
+		    "video/x-raw, width=(int)1280, height=(int)720, format=(string)BGRx ! "
+		    "videoconvert ! "
+		    "video/x-raw, format=(string)BGR ! appsink"
+		)
 
+	def start(self):
+		if self.started:
+			print("Async video already started")
+			return None
+		self.started = True
+		self.thread = threading.Thread(target=self.update, args=())
+		self.thread.start()
+		return self
+	
+	def update(self):
+		while self.started:
+			grabbed, frame = self.cap.read()
+			with self.read_lock:
+				self.grabbed = grabbed
+				self.frame = frame
+	
+	def read(self):
+		with self.read_lock:
+			frame = self.frame.copy()
+			grabbed = self.grabbed
+		return grabbed, frame
+	
+	def stop(self):
+		self.started = False
+		self.thread.join()
+	
+	def __exit__(self, exec_type, exc_value, traceback):
+		self.cap.release()
+		
 
-
-
-
-def start(self):
-	    print(self.gstreamer_pipeline_show())
-	    #opencv documentation for VideoCapture function, https://docs.opencv.org/4.1.1/d8/dfe/classcv_1_1VideoCapture.html#aabce0d83aa0da9af802455e8cf5fd181
-	    capture = cv2.VideoCapture(self.gstreamer_pipeline_show(), cv2.CAP_GSTREAMER)
-	    #opencv documentation for VideoCapture object isOpened method, https://docs.opencv.org/4.1.1/d8/dfe/classcv_1_1VideoCapture.html#a9d2ca36789e7fcfe7a7be3b328038585
-	    if capture.isOpened():
-	        # opencv documentation for namedWindow, https://docs.opencv.org/4.1.1/d7/dfc/group__highgui.html#ga5afdf8410934fd099df85c75b2e0888b
-	        window = cv2.namedWindow("Arducam", cv2.WINDOW_AUTOSIZE)
-	        #getWindowProperty documentation: https://docs.opencv.org/4.1.1/d7/dfc/group__highgui.html#gaaf9504b8f9cf19024d9d44a14e461656
-	        while cv2.getWindowProperty("Arducam", 0) >= 0:
-	            (ret, frame) = capture.read()
-	            cv2.imshow("Arducam", frame)
-	            # This also acts as
-	            keyCode = cv2.waitKey(1) & 0xFF
-	            # Stop the program on the ESC key
-	            if keyCode == 27:
-	                break
-	        capture.release()
-	        cv2.destoryAllWindows()
-	    else:
-	        print("Unable to open capture stream")
-
-
+def test(n_frames = 500):
+	cap = VideoCaptureAsync()
+	cap.start()
+	t0 = time.time()
+	for i in range(n_frames):
+		_, frame = cap.read()
+		cv2.imshow("Arducam", frame)
+		cv2.waitKey(1) & 0xFF
+	
+	print(f'FPS: {round(n_frames/(time.time()-t0), 2)}')	
+	cap.stop()
+	cv2.destroyAllWindows()
+	
+if __name__ == "__main__":
+	test(1000)
+	
