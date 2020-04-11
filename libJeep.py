@@ -17,7 +17,7 @@ class Jeep:
         # max deviation for stabilized steering angle function when 1 lane is detected
         max_angle_deviation_1l,
         # chose to record video 
-        record = False,
+        record = True,
         #chose framerate depending on hardware computing power.
         #for Jetson nano: 24-30, Rpi: 15-24, jetson tx2: 30 - 40
         framerate = 24,
@@ -32,6 +32,10 @@ class Jeep:
         self.max_angle_deviation_2l = max_angle_deviation_2l
         self.max_angle_deviation_1l = max_angle_deviation_1l
         self.record_flag = record
+        self.framerate = framerate
+        self.flip_method = flip_method
+        self.width = width
+        self.height = height
 
         #initilize motor control
         self.kit = ServoKit(channels=16)
@@ -40,10 +44,11 @@ class Jeep:
 
         #initilize camera
         if self.record_flag:
-            self.cap = cv2.VideoCapture(self.gstreamer_pipeline(), cv2.CAP_STREAMER)
-            self.out = cv2.VideoWriter('output.avi', 'XVID', 20.0, (480, 320))
+            self.cap = cv2.VideoCapture(self.gstreamer_pipeline(), cv2.CAP_GSTREAMER)
+            self.fourcc = cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')
+            self.out = cv2.VideoWriter('output.avi', self.fourcc, 20, (480, 320))
         else:
-            self.cap = cv2.VideoCapture(self.gstreamer_pipeline(), cv2.CAP_STREAMER)
+            self.cap = cv2.VideoCapture(self.gstreamer_pipeline(), cv2.CAP_GSTREAMER)
             
 
 
@@ -69,15 +74,24 @@ class Jeep:
 
     def run(self):
         if self.record_flag:
-            time_start = time.time()
+            current_steering_angle = 95
+            #time_start = time.time()
             for i in range(self.num_frames):
                 ret, frame = self.cap.read()
                 lanes = self.detect_lane(frame)
+                new_steering_angle =  self.compute_steering_angle(frame, lanes)
+                stabilized_steering_angle = self.stabilize_steering_angle(current_steering_angle, new_steering_angle, len(lanes), self.max_angle_deviation_2l, self.max_angle_deviation_2l)
                 lane_img = self.display_lines(frame, lanes)
-            cv2.imshow("arducam", lane_img)
-            cv2.waitKey(0)
+                self.kit.servo[0].angle = stabilized_steering_angle
+                self.kit.continuous_servo[1].throttle = self.max_speed
+                current_steering_angle = stabilized_steering_angle
+                print(current_steering_angle)
+                self.out.write(lane_img)
+            
+            self.kit.continuous_servo[1].throttle = 0
+            self.kit.servo[0].angle = 90
             self.cap.release()
-            cv2.destroyAllWindows()
+            self.out.release()
 
 
     def HSV(self, frame):
@@ -86,8 +100,8 @@ class Jeep:
         return hsv
     
     def create_mask(self, hsv):
-        lower_blue = np.array([90, 40, 40])
-        upper_blue = np.array([140, 255, 255])
+        lower_blue = np.array([60, 40, 40])
+        upper_blue = np.array([150, 255, 255])
         mask = cv2.inRange(hsv, lower_blue, upper_blue)
         return mask
 
@@ -186,7 +200,7 @@ class Jeep:
 
     def detect_lane(self, frame):
     
-        edges = self.canny_edge(frame)
+        edges = self.detect_edges(frame)
         cropped_edges = self.region_of_interest(edges)
         line_segments = self.detect_line_segments(cropped_edges)
         lane_lines = self.average_slope_intercept(frame, line_segments)
@@ -201,4 +215,56 @@ class Jeep:
                     cv2.line(line_image, (x1, y1), (x2, y2), line_color, line_width)
         line_image = cv2.addWeighted(frame, 0.8, line_image, 1, 1)
         return line_image
+    
+    def compute_steering_angle(self, frame, lane_lines):
+        #Find the steering angle based on lane line coordinate
+        #We assume that camera is calibrated to point to dead center
+    
+	    if len(lane_lines) == 0:
+	        logging.info('No lane lines detected, do nothing')
+	        return -90
 
+	    height, width, _ = frame.shape
+	    if len(lane_lines) == 1:
+	        logging.debug('Only detected one lane line, just follow it. %s' % lane_lines[0])
+	        x1, _, x2, _ = lane_lines[0][0]
+	        x_offset = x2 - x1
+	    else:
+	        _, _, left_x2, _ = lane_lines[0][0]
+	        _, _, right_x2, _ = lane_lines[1][0]
+	        camera_mid_offset_percent = 0.02 # 0.0 means car pointing to center, -0.03: car is centered to left, +0.03 means car pointing to right
+	        mid = int(width / 2 * (1 + camera_mid_offset_percent))
+	        x_offset = (left_x2 + right_x2) / 2 - mid
+	    # find the steering angle, which is angle between navigation direction to end of center line
+	    y_offset = int(height / 2)
+	    angle_to_mid_radian = math.atan(x_offset / y_offset)  # angle (in radian) to center vertical line
+	    angle_to_mid_deg = int(angle_to_mid_radian * 180.0 / math.pi)  # angle (in degrees) to center vertical line
+	    steering_angle = angle_to_mid_deg + 90  # this is the steering angle needed by picar front wheel
+	    logging.debug('new steering angle: %s' % steering_angle)
+	    return steering_angle
+	
+    def stabilize_steering_angle(self, curr_steering_angle, new_steering_angle, num_of_lane_lines, max_angle_deviation_two_lines, max_angle_deviation_one_lane):
+	    """
+	    Using last steering angle to stabilize the steering angle
+	    This can be improved to use last N angles, etc
+	    if new angle is too different from current angle, only turn by max_angle_deviation degrees
+	    """
+	    if num_of_lane_lines == 2 : 
+	        # if both lane lines detected, then we can deviate more
+	        max_angle_deviation = max_angle_deviation_two_lines
+	    else :
+	        # if only one lane detected, don't deviate too much
+	        max_angle_deviation = max_angle_deviation_one_lane
+	    
+	    angle_deviation = new_steering_angle - curr_steering_angle
+	    if abs(angle_deviation) > max_angle_deviation:
+	        stabilized_steering_angle = int(curr_steering_angle
+		                                        + max_angle_deviation * angle_deviation / abs(angle_deviation))
+	    else:
+	        stabilized_steering_angle = new_steering_angle
+	    logging.info('Proposed angle: %s, stabilized angle: %s' % (new_steering_angle, stabilized_steering_angle))
+	    return stabilized_steering_angle
+
+if __name__ == '__main__':
+    jeep = Jeep(50, 0.1, 5, 5)
+    jeep.run()
