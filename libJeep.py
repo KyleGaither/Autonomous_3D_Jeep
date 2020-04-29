@@ -17,11 +17,12 @@ class Camera:
 	def stream(self):
 		# On versions of L4T previous to L4T 28.1, flip-method=2
 		# Use Jetson onboard camera
-		gst_str = "v4l2src ! video/x-raw, width=(int)1280, height=(int)720 ! videoconvert ! video/x-raw, format=(string)BGR ! appsink"
-		return cv2.VideoCapture(gst_str, cv2.CAP_GSTREAMER)
+		#gst_str = "v4l2src ! video/x-raw, width=(int)1280, height=(int)720 ! videoconvert ! video/x-raw, format=(string)BGR ! appsink"
+		#return cv2.VideoCapture(gst_str, cv2.CAP_GSTREAMER)
+		return cv2.VideoCapture(0)
 
 	def record(self, framerate):
-		return cv2.VideoWriter('output.avi', cv2.VideoWriter_fourcc('M','J','P','G'), framerate, (1280,720))
+		return cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*"MP4V"), framerate, (1280,720))
 
 
 ##############################  CAMERA CLASS END  ##############################
@@ -36,17 +37,24 @@ class Motor:
 		self.esc_index = esc_index
 		self.kit = ServoKit(channels = 16)
 		self.steer(90)
-		self.speed(0)
+		self.speed(0,90)
 	def steer(self, steering_angle):
-		self.kit.servo[self.servo_index].angle = steering_angle
+		if steering_angle >= 130:
+			self.kit.servo[self.servo_index].angle = 160
+		else:
+			self.kit.servo[self.servo_index].angle = steering_angle
 
-	def speed(self, speed):
-		self.kit.continuous_servo[self.esc_index].throttle = speed
+	def speed(self, speed, steering_angle):
+		if steering_angle < 120 and steering_angle > 70:
+			self.kit.continuous_servo[self.esc_index].throttle = self.max_speed
+		elif steering_angle >  300:
+			self.kit.continuous_servo[self.esc_index].throttle = 0
+		else:
+			self.kit.continuous_servo[self.esc_index].throttle = speed
 
 ##############################  MOTOR CLASS END  ##############################
 def HSV(frame):
-	blur = cv2.GaussianBlur(frame,(3,3),0)
-	hsv = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV)
+	hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 	return hsv
 
 def detect_lane(frame):
@@ -196,11 +204,16 @@ def compute_steering_angle(frame, lane_lines):
     steering_angle = angle_to_mid_deg + 90  # this is the steering angle needed by picar front wheel
 
     logging.debug('new steering angle: %s' % steering_angle)
+    if  steering_angle < 50:
+        steering_angle = 50
+
+    if steering_angle > 140:
+       steering_angle = 160
     return steering_angle
 
 
-def stabilize_steering_angle(curr_steering_angle, new_steering_angle, num_of_lane_lines, max_angle_deviation_two_lines=3, 
-			     max_angle_deviation_one_lane=5):
+def stabilize_steering_angle(curr_steering_angle, new_steering_angle, num_of_lane_lines, max_angle_deviation_two_lines=15, 
+			     max_angle_deviation_one_lane=10):
     """
     Using last steering angle to stabilize the steering angle
     This can be improved to use last N angles, etc
